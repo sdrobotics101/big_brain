@@ -34,3 +34,8 @@ class Condition:
             else:
                 self.state = CONDITION_F
         return self.state == CONDITION_T or self.state == CONDITION_T_CT
+    def get_value(self):
+        return self.state == CONDITION_T or self.state == CONDITION_T_CT
+    def reset(self, start):
+        self.state = CONDITION_T if start else CONDITION_F
+        self.counter = self.off_cycles if start else self.on_cycles
