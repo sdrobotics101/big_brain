@@ -17,7 +17,7 @@ class Condition:
         value = self.eval_fun()
         if self.state == CONDITION_F:
             self.counter = self.on_cycles
-            self.state = CONDITION_F_CT if value else CONDITION_F
+            self.state = CONDITION_F if not value else CONDITION_T if self.counter == 1 else CONDITION_F_CT
         elif self.state == CONDITION_F_CT:
             self.counter = self.counter - 1
             if self.counter:
@@ -26,7 +26,7 @@ class Condition:
                 self.state = CONDITION_T
         elif self.state == CONDITION_T:
             self.counter = self.off_cycles
-            self.state = CONDITION_T if value else CONDITION_T_CT
+            self.state = CONDITION_T if value else CONDITION_F if self.counter == 1 else CONDITION_T_CT
         else:
             self.counter = self.counter - 1
             if self.counter:
