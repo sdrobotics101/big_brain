@@ -62,6 +62,8 @@ kill.isKilled = True
 for i in range(8):
     detections.detections[i].x = 0
     detections.detections[i].y = 0
+    detections.detections[i].w = 0
+    detections.detections[i].h = 0
     detections.detections[i].size = 0
     detections.detections[i].cls = 0
 
