@@ -13,8 +13,14 @@ class Condition:
         self.off_cycles = off_cycles
         self.state = CONDITION_T if start else CONDITION_F
         self.counter = self.off_cycles if start else self.on_cycles
-    def __call__(self):
-        value = self.eval_fun()
+        self.ran_this_cycle = False
+    def __call__(self, args=None):
+        if not self.ran_this_cycle:
+            self.evaluate(args)
+        self.ran_this_cycle = True
+        return self.state == CONDITION_T or self.state == CONDITION_T_CT
+    def evaluate(self, args):
+        value = self.eval_fun(args)
         if self.state == CONDITION_F:
             self.counter = self.on_cycles
             self.state = CONDITION_F if not value else CONDITION_T if self.counter == 1 else CONDITION_F_CT
@@ -33,9 +39,8 @@ class Condition:
                 self.state = CONDITION_T if value else CONDITION_T_CT
             else:
                 self.state = CONDITION_F
-        return self.state == CONDITION_T or self.state == CONDITION_T_CT
-    def get_value(self):
-        return self.state == CONDITION_T or self.state == CONDITION_T_CT
+    def prepare(self):
+        self.ran_this_cycle = False
     def reset(self, start):
         self.state = CONDITION_T if start else CONDITION_F
         self.counter = self.off_cycles if start else self.on_cycles
