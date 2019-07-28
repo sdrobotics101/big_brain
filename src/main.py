@@ -23,15 +23,13 @@ from condition import Condition
 
 from state import KilledState, Gate
 
-controlInput = ControlInput()
 sensorReset = SensorReset()
-status = Status()
-
 sensorReset.pos[Axes.xaxis] = 0
 sensorReset.pos[Axes.yaxis] = 0
 sensorReset.pos[Axes.zaxis] = 0
 sensorReset.reset      = False
 
+status = Status()
 status.macrostate = 0
 status.microstate = 0
 
@@ -134,12 +132,12 @@ def set_control(client, heading, depth, velocity):
 def main():
     client = pydsm.Client(42, settings.CLIENT_ID, True)
     client.registerLocalBuffer("control", sizeof(ControlInput), False)
-    # client.registerLocalBuffer("sensorreset", sizeof(SensorReset), False)
-    # client.registerLocalBuffer("status", sizeof(Status), False)
+    client.registerLocalBuffer("sensorreset", sizeof(SensorReset), False)
+    client.registerLocalBuffer("status", sizeof(Status), False)
     time.sleep(0.5)
     control = set_control(client, 0, 0, 0)
-    # client.setLocalBufferContents("sensorreset", pack(sensorReset))
-    # client.setLocalBufferContents("status", pack(status))
+    client.setLocalBufferContents("sensorreset", pack(sensorReset))
+    client.setLocalBufferContents("status", pack(status))
     print("Created local buffers: control, sensorreset, status")
 
     register_remote_buffers(client, settings.remote_buffers)
