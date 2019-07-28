@@ -52,7 +52,7 @@ conditions["at_depth"] = at_depth
 
 def is_at_target_heading(args):
     setpoint = control(args).angular[Axes.zaxis].pos[0]
-    actual = data(args)["angular"].pos[Axes.zaxis]
+    actual = data(args)["angular"].acc[Axes.zaxis]
     return abs(setpoint - actual) < settings.HEADING_TOLERANCE
 at_heading = Condition(is_at_target_heading, 30, 10, False)
 conditions["at_heading"] = at_heading
@@ -72,6 +72,24 @@ def active_detection(args):
     return active_detections(dets) > 0
 has_active_detection = Condition(active_detection, 1, 1, False)
 conditions["has_active_detection"] = has_active_detection
+
+def one_detection(args):
+    dets = data(args)["forwarddetection"].detections
+    return active_detections(dets) == 1
+has_one_detection = Condition(one_detection, 150, 1, False)
+conditions["has_one_detection"] = has_one_detection
+
+def two_detections(args):
+    dets = data(args)["forwarddetection"].detections
+    return active_detections(dets) == 2
+has_two_detections = Condition(two_detections, 1, 1, False)
+conditions["has_two_detections"] = has_two_detections
+
+def three_detections(args):
+    dets = data(args)["forwarddetection"].detections
+    return active_detections(dets) == 3
+has_three_detections = Condition(three_detections, 1, 1, False)
+conditions["has_three_detections"] = has_three_detections
 
 prev_x = 0
 def new_frame(args):
@@ -116,12 +134,12 @@ def set_control(client, heading, depth, velocity):
 def main():
     client = pydsm.Client(42, settings.CLIENT_ID, True)
     client.registerLocalBuffer("control", sizeof(ControlInput), False)
-    client.registerLocalBuffer("sensorreset", sizeof(SensorReset), False)
-    client.registerLocalBuffer("status", sizeof(Status), False)
+    # client.registerLocalBuffer("sensorreset", sizeof(SensorReset), False)
+    # client.registerLocalBuffer("status", sizeof(Status), False)
     time.sleep(0.5)
     control = set_control(client, 0, 0, 0)
-    client.setLocalBufferContents("sensorreset", pack(sensorReset))
-    client.setLocalBufferContents("status", pack(status))
+    # client.setLocalBufferContents("sensorreset", pack(sensorReset))
+    # client.setLocalBufferContents("status", pack(status))
     print("Created local buffers: control, sensorreset, status")
 
     register_remote_buffers(client, settings.remote_buffers)
@@ -139,7 +157,9 @@ def main():
             next_state = state((control, data, conditions))
             # set outputs
             control = set_control(client, state.heading(), state.depth(), state.velocity())
-            print(state)
+            strState = str(state)
+            if not ("new_frame" in strState):
+                print(state)
             state = next_state
             # sleep a bit
             time.sleep(0.01)
@@ -149,61 +169,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-# was_killed = True
-# heading = 0
-# move_back_count = 0
-# prev_heading = 0
-# while True:
-#     try:
-#         time.sleep(0.1)
-#         update_buffers()
-#         at_depth()
-#         at_heading()
-#         settled()
-#         killed()
-#         has_detection()
-
-#         if killed.get_value():
-#             was_killed = True
-#             controlInput.angular[Axes.zaxis].pos[0] = 0
-#             controlInput.linear[Axes.xaxis].vel = 0
-#             controlInput.linear[Axes.zaxis].pos[0] = 0
-#             client.setLocalBufferContents("control", pack(controlInput))
-#             print("killed")
-#             continue
-#         if was_killed:
-#             was_killed = False
-#             heading = angular.acc[Axes.zaxis]
-#             controlInput.angular[Axes.zaxis].pos[0] = heading
-#             controlInput.linear[Axes.zaxis].pos[0] = TARGET_DEPTH
-#             client.setLocalBufferContents("control", pack(controlInput))
-#             print("unkilled, heading: ", heading)
-#             continue
-
-#         if move_back_count == 100:
-#             move_back_count = 0
-#         if move_back_count > 50:
-#             controlInput.linear[Axes.xaxis].vel = MOVE_BACK_VEL
-#         else:
-#             controlInput.linear[Axes.xaxis].vel = 25
-#         move_back_count = move_back_count + 1
-
-#         running_avg = sum(run_avg_adjust) / 4
-#         if running_avg < RUN_AVG_THRESH and running_avg > -RUN_AVG_THRESH:
-#             controlInput.linear[Axes.xaxis].vel = 100
-
-#         if new_frame and has_detection.get_value():
-#             heading = align_to_gate(heading, detections)
-#             controlInput.angular[Axes.zaxis].pos[0] = heading
-#             new_frame = False
-
-#         print("target heading: ", round(heading, 2), " settled: ", settled.get_value(), " detection: ", has_detection.get_value(), " x: ", round(detections.detections[0].x, 2), " size: ", round(detections.detections[0].size, 2))
-#         print("avg ", running_avg)
-#         print("adj ", run_avg_adjust)
-#         client.setLocalBufferContents("control", pack(controlInput))
-
-#     except KeyboardInterrupt:
-#         print("Caught control-C, exiting")
-#         break
-

@@ -39,14 +39,15 @@ class KilledState(State):
     def __call__(self, args):
         return self.microstate(args)
     def check_unkilled(self, args):
-        if not conditions(args)["killed"]():
+        if not conditions(args)["killed"](args):
             self.heading_to_follow = data(args)["angular"].acc[Axes.zaxis]
             self.microstate = self.wait_for_depth
+            conditions(args)["below_starting_depth"].reset(False)
         return self
     def wait_for_depth(self, args):
-        if conditions(args)["killed"]():
+        if conditions(args)["killed"](args):
             return KilledState()
-        if conditions(args)["below_starting_depth"]:
+        if conditions(args)["below_starting_depth"](args):
             return Gate(self.heading_to_follow)
         return self
     def heading(self):
@@ -67,29 +68,30 @@ class Gate(State):
         self.set_velocity = 0
         self.processed_frame = False
     def __call__(self, args):
-        if conditions(args)["killed"]:
+        if conditions(args)["killed"](args):
             return KilledState()
         return self.microstate(args)
     def sink(self, args):
         self.set_depth = settings.GATE_TARGET_DEPTH
         self.set_heading = data(args)["angular"].acc[Axes.zaxis]
-        if conditions(args)["at_depth"]:
+        if conditions(args)["at_depth"](args):
             self.microstate = self.initial_align
         return self
     def initial_align(self, args):
         self.set_heading = self.gate_heading
-        if conditions(args)["settled"]:
+        if conditions(args)["settled"](args):
             self.microstate = self.initial_dead_reckon
         return self
     def initial_dead_reckon(self, args):
         self.set_velocity = settings.GATE_VELOCITY
-        if conditions(args)["interesting_frame"]:
+        if conditions(args)["interesting_frame"](args):
             dets = data(args)["forwarddetection"].detections
             num_dets = active_detections(dets)
             if num_dets == 1:
                 self.microstate = self.initial_one_det
             else:
                 self.microstate = self.transition_on_num_dets
+        return self
     def dead_reckon(self, args):
         self.set_velocity = settings.GATE_VELOCITY
         self.microstate = self.wait_for_new_frame
@@ -97,11 +99,11 @@ class Gate(State):
     def transition_on_num_dets(self, args):
         dets = data(args)["forwarddetection"].detections
         num_dets = active_detections(dets)
-        if num_dets == 1:
+        if conditions(args)["has_one_detection"](args):
             self.microstate = self.one_det
-        elif num_dets == 2:
+        elif conditions(args)["has_two_detections"](args):
             self.microstate = self.two_dets
-        elif num_dets == 3:
+        elif conditions(args)["has_three_detections"](args):
             self.microstate = self.three_dets
         else:
             self.microstate = self.dead_reckon
@@ -114,7 +116,7 @@ class Gate(State):
                 self.set_heading += settings.GATE_HEADING_ADJUST
             if dets[0].x < 0.5 - settings.VISION_X_TOLERANCE:
                 self.set_heading -= settings.GATE_HEADING_ADJUST
-        if conditions(args)["has_new_frame"]:
+        if conditions(args)["has_new_frame"](args):
             self.processed_frame = False
             dets = data(args)["forwarddetection"].detections
             num_dets = active_detections(dets)
@@ -131,7 +133,7 @@ class Gate(State):
             self.set_heading += settings.GATE_HEADING_ADJUST * align_adjustment(dets[0], dets[1])
         elif cpi == 0:
             if settings.GATE_40_LEFT:
-                new_heading -= settings.GATE_HEADING_ADJUST
+                self.set_heading -= settings.GATE_HEADING_ADJUST
             else:
                 self.set_heading += settings.GATE_HEADING_ADJUST * align_adjustment(dets[0], dets[1])
         elif cpi == 1:
@@ -150,13 +152,16 @@ class Gate(State):
             self.set_heading += settings.GATE_HEADING_ADJUST * align_adjustment(dets[1], dets[2])
         self.microstate = self.wait_for_new_frame
         return self
-    # assume this is reached once we have lined up and are close
-    # TODO revise above assumption
     def one_det(self, args):
-        self.set_velocity = settings.GATE_FAST_VELOCITY
+        dets = data(args)["forwarddetection"].detections
+        if dets[0].x >= 0.5:
+            self.set_heading -= settings.GATE_HEADING_ADJUST
+        if dets[0].x < 0.5:
+            self.set_heading += settings.GATE_HEADING_ADJUST
+        self.microstate = self.wait_for_new_frame
         return self
     def wait_for_new_frame(self, args):
-        if conditions(args)["new_frame"]:
+        if conditions(args)["has_new_frame"](args):
             self.microstate = self.transition_on_num_dets
         return self
     def heading(self):

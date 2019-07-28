@@ -20,7 +20,7 @@ DOW_SID = 46
 HEADING_TOLERANCE = 8 # degrees
 DEPTH_TOLERANCE = 0.1 # meters
 
-STARTING_DEPTH = 0.35 # meters
+STARTING_DEPTH = 0.5 # meters
 TARGET_DEPTH = 0.5 # meters
 
 MOVE_BACK_VEL = -50
@@ -37,8 +37,9 @@ RUN_AVG_THRESH = 0.3
 
 ### GATE CONSTANTS ###
 GATE_TARGET_DEPTH = 0.5 # meters
-GATE_VELOCITY = 35
-GATE_FAST_VELOCITY = 150
+GATE_VELOCITY = 65
+GATE_FAST_VELOCITY = 100
+GATE_HEADING_ADJUST = 2.5
 # true if 40% side is on the left, false otherwise
 GATE_40_LEFT = False
 
