@@ -47,14 +47,14 @@ def is_at_target_depth(args):
     setpoint = control(args).linear[Axes.zaxis].pos[0]
     actual = data(args)["linear"].pos[Axes.zaxis]
     return abs(setpoint - actual) < settings.DEPTH_TOLERANCE
-at_depth = Condition(is_at_target_depth, 5, 3, False)
+at_depth = Condition(is_at_target_depth, 50, 30, False)
 conditions["at_depth"] = at_depth
 
 def is_at_target_heading(args):
     setpoint = control(args).angular[Axes.zaxis].pos[0]
     actual = data(args)["angular"].pos[Axes.zaxis]
     return abs(setpoint - actual) < settings.HEADING_TOLERANCE
-at_heading = Condition(is_at_target_heading, 3, 1, False)
+at_heading = Condition(is_at_target_heading, 30, 10, False)
 conditions["at_heading"] = at_heading
 
 def is_settled(args):
@@ -91,7 +91,7 @@ conditions["interesting_frame"] = interesting_frame
 
 def is_below_starting_depth(args):
     return data(args)["linear"].pos[Axes.zaxis] > settings.STARTING_DEPTH
-below_starting_depth = Condition(is_below_starting_depth, 10, 1, False)
+below_starting_depth = Condition(is_below_starting_depth, 100, 1, False)
 conditions["below_starting_depth"] = below_starting_depth
 
 def set_control(client, heading, depth, velocity):

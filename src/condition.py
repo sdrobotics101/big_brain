@@ -16,8 +16,8 @@ class Condition:
         self.ran_this_cycle = False
     def __call__(self, args=None):
         if not self.ran_this_cycle:
+            self.ran_this_cycle = True
             self.evaluate(args)
-        self.ran_this_cycle = True
         return self.state == CONDITION_T or self.state == CONDITION_T_CT
     def evaluate(self, args):
         value = self.eval_fun(args)

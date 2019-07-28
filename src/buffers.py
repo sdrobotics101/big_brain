@@ -21,7 +21,7 @@ def register_remote_buffers(client, keys):
 def update_remote_buffer(client, key):
     data, active = client.getRemoteBufferContents(name(key), ip(key), sid(key))
     if not active:
-        print("WARNING: ", name(key), " not active")
+        print("WARNING:", name(key), "not active")
     return unpack(obj(key), data)
 
 def update_remote_buffers(client, keys):

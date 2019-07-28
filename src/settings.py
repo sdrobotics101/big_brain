@@ -35,9 +35,6 @@ HEADING_THRESH = 3
 
 RUN_AVG_THRESH = 0.3
 
-# whether to turn left or right if only 1 detection
-TIEBREAK_TURN_LEFT = False
-
 ### GATE CONSTANTS ###
 GATE_TARGET_DEPTH = 0.5 # meters
 GATE_VELOCITY = 35
