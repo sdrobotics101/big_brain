@@ -9,7 +9,18 @@ def detections_of_class(dets, cls):
     f = lambda x: x.cls == cls
     return list(filter(f, dets))
 
-gate_dets = partial(detections_of_class, cls=settings.FOR_GATE)
+aswang_dets = partial(detections_of_class, cls=settings.ASWANG)
+draugr_dets = partial(detections_of_class, cls=settings.DRAUGR)
+vetalas_dets = partial(detections_of_class, cls=settings.VETALAS)
+jianshi_dets = partial(detections_of_class, cls=settings.JIANGSHI)
+gate_dets = partial(detections_of_class, cls=settings.GATE)
+bin_dets = partial(detections_of_class, cls=settings.BIN)
+fmarker_dets = partial(detections_of_class, cls=settings.FOR_MARKER)
+
+dmarker_dets = partial(detections_of_class, cls=settings.DOW_MARKER)
+checker_dets = partial(detections_of_class, cls=settings.CHECKER)
+wolf_dets = partial(detections_of_class, cls=settings.WOLF)
+bat_dets = partial(detections_of_class, cls=settings.BAT)
 
 def center_pole_index(dets):
     dets = gate_dets(dets)
