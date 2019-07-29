@@ -1,11 +1,18 @@
 import settings
-from functools import reduce
+from functools import reduce, partial
 
 def active_detections(dets):
-    m = map(lambda x: x.cls != 255, dets)
-    return reduce(lambda x,y: x+y, m)
+    f = lambda x: x.cls != 255
+    return list(filter(f, dets))
+
+def detections_of_class(dets, cls):
+    f = lambda x: x.cls == cls
+    return list(filter(f, dets))
+
+gate_dets = partial(detections_of_class, cls=settings.FOR_GATE)
 
 def center_pole_index(dets):
+    dets = gate_dets(dets)
     if dets[0].h < dets[1].h * settings.CENTER_POLE_HEIGHT_MULTIPLIER:
         return 0
     elif dets[1].h < dets[0].h * settings.CENTER_POLE_HEIGHT_MULTIPLIER:

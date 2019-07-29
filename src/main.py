@@ -17,7 +17,12 @@ from buffers import (
     register_remote_buffers,
     update_remote_buffers
 )
-from detection_utils import active_detections
+from detection_utils import (
+    active_detections,
+    gate_dets
+)
+
+from functools import partial
 
 from condition import Condition
 
@@ -67,33 +72,28 @@ conditions["killed"] = killed
 
 def active_detection(args):
     dets = data(args)["forwarddetection"].detections
-    return active_detections(dets) > 0
+    return len(active_detections(dets)) > 0
 has_active_detection = Condition(active_detection, 1, 1, False)
 conditions["has_active_detection"] = has_active_detection
 
-def one_detection(args):
+def n_gates(args, n):
     dets = data(args)["forwarddetection"].detections
-    return active_detections(dets) == 1
-has_one_detection = Condition(one_detection, 150, 1, False)
-conditions["has_one_detection"] = has_one_detection
-
-def two_detections(args):
-    dets = data(args)["forwarddetection"].detections
-    return active_detections(dets) == 2
-has_two_detections = Condition(two_detections, 1, 1, False)
-conditions["has_two_detections"] = has_two_detections
-
-def three_detections(args):
-    dets = data(args)["forwarddetection"].detections
-    return active_detections(dets) == 3
-has_three_detections = Condition(three_detections, 1, 1, False)
-conditions["has_three_detections"] = has_three_detections
+    return len(gate_dets(dets)) == n
+one_gate = partial(n_gates, n=1)
+two_gates = partial(n_gates, n=2)
+three_gates = partial(n_gates, n=3)
+has_one_gate = Condition(one_gate, 150, 1, False)
+has_two_gates = Condition(two_gates, 1, 1, False)
+has_three_gates = Condition(three_gates, 1, 1, False)
+conditions["has_one_gate"] = has_one_gate
+conditions["has_two_gates"] = has_two_gates
+conditions["has_three_gates"] = has_three_gates
 
 prev_x = 0
 def new_frame(args):
     dets = data(args)["forwarddetection"].detections
     global prev_x
-    if has_active_detection(args) and dets[0].x != prev_x:
+    if dets[0].x != prev_x:
         prev_x = dets[0].x
         return True
     return False
