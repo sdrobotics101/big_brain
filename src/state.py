@@ -130,39 +130,54 @@ class Gate(State):
         dets = data(args)["forwarddetection"].detections
         cpi = center_pole_index(dets)
         if cpi == -1:
-            self.set_heading += settings.GATE_HEADING_ADJUST * align_adjustment(dets[0], dets[1])
+            self.microstate = self.align01
         elif cpi == 0:
             if settings.GATE_40_LEFT:
-                self.set_heading -= settings.GATE_HEADING_ADJUST
+                self.microstate = self.turn_left
             else:
-                self.set_heading += settings.GATE_HEADING_ADJUST * align_adjustment(dets[0], dets[1])
+                self.microstate = self.align01
         elif cpi == 1:
             if settings.GATE_40_LEFT:
-                self.set_heading += settings.GATE_HEADING_ADJUST * align_adjustment(dets[0], dets[1])
+                self.microstate = self.align01
             else:
-                self.set_heading += settings.GATE_HEADING_ADJUST
-        self.microstate = self.wait_for_new_frame
+                self.microstate = self.turn_right
         return self
     def three_dets(self, args):
         self.set_velocity = settings.GATE_VELOCITY
         dets = data(args)["forwarddetection"].detections
         if settings.GATE_40_LEFT:
-            self.set_heading += settings.GATE_HEADING_ADJUST * align_adjustment(dets[0], dets[1])
+            self.microstate = self.align01;
         else:
-            self.set_heading += settings.GATE_HEADING_ADJUST * align_adjustment(dets[1], dets[2])
-        self.microstate = self.wait_for_new_frame
+            self.microstate = self.align12;
         return self
     def one_det(self, args):
         dets = data(args)["forwarddetection"].detections
         if dets[0].x >= 0.5:
-            self.set_heading -= settings.GATE_HEADING_ADJUST
+            self.microstate = self.turn_left
         if dets[0].x < 0.5:
-            self.set_heading += settings.GATE_HEADING_ADJUST
-        self.microstate = self.wait_for_new_frame
+            self.microstate = self.turn_right
         return self
     def wait_for_new_frame(self, args):
         if conditions(args)["has_new_frame"](args):
             self.microstate = self.transition_on_num_dets
+        return self
+    def align01(self, args):
+        dets = data(args)["forwarddetection"].detections
+        self.set_heading += settings.GATE_HEADING_ADJUST * align_adjustment(dets[0], dets[1])
+        self.microstate = self.wait_for_new_frame
+        return self
+    def align12(self, args):
+        dets = data(args)["forwarddetection"].detections
+        self.set_heading += settings.GATE_HEADING_ADJUST * align_adjustment(dets[1], dets[2])
+        self.microstate = self.wait_for_new_frame
+        return self
+    def turn_right(self, args):
+        self.set_heading += settings.GATE_HEADING_ADJUST
+        self.microstate = self.wait_for_new_frame
+        return self
+    def turn_left(self, args):
+        self.set_heading -= settings.GATE_HEADING_ADJUST
+        self.microstate = self.wait_for_new_frame
         return self
     def heading(self):
         return self.set_heading
