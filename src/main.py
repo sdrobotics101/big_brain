@@ -133,11 +133,11 @@ def main():
     client = pydsm.Client(42, settings.CLIENT_ID, True)
     client.registerLocalBuffer("control", sizeof(ControlInput), False)
     client.registerLocalBuffer("sensorreset", sizeof(SensorReset), False)
-    client.registerLocalBuffer("status", sizeof(Status), False)
+    # client.registerLocalBuffer("status", sizeof(Status), False)
     time.sleep(0.5)
     control = set_control(client, 0, 0, 0)
     client.setLocalBufferContents("sensorreset", pack(sensorReset))
-    client.setLocalBufferContents("status", pack(status))
+    # client.setLocalBufferContents("status", pack(status))
     print("Created local buffers: control, sensorreset, status")
 
     register_remote_buffers(client, settings.remote_buffers)

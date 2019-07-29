@@ -1,3 +1,5 @@
+from datetime import datetime, timedelta
+
 from constants import Axes
 from detection_utils import (
     active_detections,
@@ -18,22 +20,28 @@ def conditions(args):
 
 class State:
     def __init__(self):
-        pass
+        self.set_heading = 0
+        self.set_depth = 0
+        self.set_velocity = 0
+        self.microstate = None
     def __call__(self, args):
         return NotImplementedError
     def heading(self):
-        return NotImplementedError
+        return self.set_heading
     def depth(self):
-        return NotImplementedError
+        return self.set_depth
     def velocity(self):
-        return NotImplementedError
-    def status(self):
-        return NotImplementedError
+        return self.set_velocity
     def __str__(self):
-        return NotImplementedError
+        return " - ".join([self.__class__.__name__,
+                           self.microstate.__name__,
+                           str(self.set_heading),
+                           str(self.set_depth),
+                           str(self.set_velocity)])
 
 class KilledState(State):
     def __init__(self):
+        super(KilledState, self).__init__()
         self.microstate = self.check_unkilled
         self.heading_to_follow = 0
     def __call__(self, args):
@@ -49,7 +57,8 @@ class KilledState(State):
             return KilledState()
         if conditions(args)["below_starting_depth"](args):
             # return Gate(self.heading_to_follow)
-            return Buoy(self.heading_to_follow)
+            # TODO
+            return FindBuoy(self.heading_to_follow)
         return self
     def heading(self):
         return 0
@@ -57,21 +66,21 @@ class KilledState(State):
         return 0
     def velocity(self):
         return 0
-    def __str__(self):
-        return " - ".join([self.__class__.__name__, self.microstate.__name__])
 
-class Gate(State):
-    def __init__(self, gate_heading):
-        self.microstate = self.sink
-        self.gate_heading = gate_heading
-        self.set_heading = 0
-        self.set_depth = 0
-        self.set_velocity = 0
-        self.processed_frame = False
+class KillableState(State):
+    def __init__(self):
+        super(KillableState, self).__init__()
     def __call__(self, args):
         if conditions(args)["killed"](args):
             return KilledState()
         return self.microstate(args)
+
+class Gate(KillableState):
+    def __init__(self, gate_heading):
+        super(Gate, self).__init__()
+        self.microstate = self.sink
+        self.gate_heading = gate_heading
+        self.processed_frame = False
     def sink(self, args):
         self.set_depth = settings.GATE_TARGET_DEPTH
         self.set_heading = data(args)["angular"].acc[Axes.zaxis]
@@ -180,31 +189,12 @@ class Gate(State):
         self.set_heading -= settings.GATE_HEADING_ADJUST
         self.microstate = self.wait_for_new_frame
         return self
-    def heading(self):
-        return self.set_heading
-    def depth(self):
-        return self.set_depth
-    def velocity(self):
-        return self.set_velocity
-    def __str__(self):
-        return " - ".join([self.__class__.__name__,
-                           self.microstate.__name__,
-                           str(self.set_heading),
-                           str(self.set_depth),
-                           str(self.set_velocity)])
 
-class Buoy(State):
+class FindBuoy(KillableState):
     def __init__(self, start_heading):
+        super(FindBuoy, self).__init__()
         self.microstate = self.sink
         self.start_heading = start_heading
-        self.set_heading = 0
-        self.set_depth = 0
-        self.set_velocity = 0
-        self.touch_counter = 0
-    def __call__(self, args):
-        if conditions(args)["killed"](args):
-            return KilledState()
-        return self.microstate(args)
     def sink(self, args):
         self.set_velocity = 0
         self.set_depth = settings.BUOY_TARGET_DEPTH
@@ -219,8 +209,9 @@ class Buoy(State):
             self.microstate = self.drive_forward
         # TODO magic number 3
         elif num_dets >= 1 and dets[0].cls == 3:
-            if dets[0].size >= settings.BUOY_SIZE_THRESH:
-                self.microstate = self.touch_and_back_off
+            if dets[0].size > settings.BUOY_SIZE_THRESH:
+                self.microstate = self.prepare_for_second_buoy
+                return TouchBuoy(self, self.set_heading)
             else:
                 self.microstate = self.align0
         return self
@@ -241,18 +232,6 @@ class Buoy(State):
         else:
             self.microstate = self.wait_for_new_frame
         return self
-    def touch_and_back_off(self, args):
-        if (self.touch_counter < settings.BUOY_TOUCH_PRE_CYCLE_COUNT):
-            self.set_velocity = settings.BUOY_VELOCITY
-        elif (self.touch_counter < settings.BUOY_TOUCH_POST_CYCLE_COUNT):
-            self.set_velocity = settings.BUOY_REVERSE_VELOCITY
-        else:
-            self.microstate = self.dead
-        self.touch_counter += 1
-        return self
-    def dead(self, args):
-        self.set_velocity = 0
-        return self
     def turn_right(self, args):
         self.set_heading += settings.BUOY_HEADING_ADJUST
         self.microstate = self.wait_for_new_frame
@@ -261,16 +240,56 @@ class Buoy(State):
         self.set_heading -= settings.BUOY_HEADING_ADJUST
         self.microstate = self.wait_for_new_frame
         return self
-    def heading(self):
-        return self.set_heading
-    def depth(self):
-        return self.set_depth
-    def velocity(self):
-        return self.set_velocity
-    def __str__(self):
-        return " - ".join([self.__class__.__name__,
-                           self.microstate.__name__,
-                           str(self.set_heading),
-                           str(self.set_depth),
-                           str(self.set_velocity)])
+    def prepare_for_second_buoy(self, args):
+        self.set_velocity = 0
+        return self
 
+class TouchBuoy(KillableState):
+    def __init__(self, return_state, set_heading):
+        super(TouchBuoy, self).__init__()
+        self.microstate = self.drive_into_buoy
+        self.return_state = return_state
+        self.set_heading = set_heading
+        self.set_depth = settings.BUOY_TARGET_DEPTH
+        self.set_velocity = settings.BUOY_TOUCH_VELOCITY
+        self.start_time = datetime.now()
+    def drive_into_buoy(self, args):
+        self.set_velocity = settings.BUOY_TOUCH_VELOCITY
+        end_time = self.start_time + timedelta(milliseconds=settings.BUOY_TOUCH_TIME)
+        cur_time = datetime.now()
+        if cur_time > end_time:
+            self.start_time = cur_time
+            self.microstate = self.stop
+        return self
+    def stop(self, args):
+        self.set_velocity = 0
+        end_time = self.start_time + timedelta(milliseconds=settings.BUOY_STOP_TIME)
+        cur_time = datetime.now()
+        if cur_time > end_time:
+            self.start_time = cur_time
+            self.microstate = self.back_off
+        return self
+    def back_off(self, args):
+        self.set_velocity = settings.BUOY_BACKOFF_VELOCITY
+        end_time = self.start_time + timedelta(milliseconds=settings.BUOY_BACKOFF_TIME)
+        cur_time = datetime.now()
+        if cur_time > end_time:
+            return self.return_state
+        return self
+
+class SinkAndFindHeading(KillableState):
+    def __init__(self, set_heading, set_depth, return_state):
+        super(SinkAndFindHeading, self).__init__()
+        self.microstate = self.dispatch
+        self.return_state = return_state
+    def sink(self, args):
+        self.set_depth = settings.GATE_TARGET_DEPTH
+        self.set_heading = data(args)["angular"].acc[Axes.zaxis]
+        if conditions(args)["at_depth"](args):
+            self.microstate = self.initial_align
+        return self
+    def initial_align(self, args):
+        self.set_heading = self.gate_heading
+        if conditions(args)["settled"](args):
+            self.microstate = self.initial_dead_reckon
+        return self
