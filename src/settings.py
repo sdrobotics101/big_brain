@@ -5,7 +5,7 @@ from serialization import pack, unpack
 from constants import Sensor, Motor, Vision, Master, ServerID, PiIP, Axes, Quaternion, LocationType, Goal
 from vision import Detection, DetectionArray
 
-CLIENT_ID = 9
+CLIENT_ID = 97
 
 SEN_IP = "10.0.0.43"
 NAV_IP = "10.0.0.44"
@@ -42,6 +42,15 @@ GATE_FAST_VELOCITY = 100
 GATE_HEADING_ADJUST = 1
 # true if 40% side is on the left, false otherwise
 GATE_40_LEFT = False
+
+### BUOY CONSTANTS ###
+BUOY_TARGET_DEPTH = 0.95
+BUOY_VELOCITY = 35
+BUOY_HEADING_ADJUST = 1
+BUOY_SIZE_THRESH = 0.05
+BUOY_REVERSE_VELOCITY = -70
+BUOY_TOUCH_PRE_CYCLE_COUNT = 200
+BUOY_TOUCH_POST_CYCLE_COUNT = 600
 
 remote_buffers = [
     ("angular", SEN_IP, SEN_SID, Angular),
