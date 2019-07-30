@@ -215,7 +215,7 @@ class FindBuoy(KillableState):
             self.microstate = self.drive_forward
         # TODO magic number 3
         elif num_dets >= 1 and dets[0].cls == 3:
-            if dets[0].size > settings.BUOY_SIZE_THRESH:
+            if dets[0].cxt > settings.BUOY_SIZE_THRESH:
                 self.microstate = self.prepare_for_second_buoy
                 return TouchBuoy(self, self.set_heading)
             else:
