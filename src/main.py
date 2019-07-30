@@ -91,12 +91,17 @@ conditions["has_one_gate"] = has_one_gate
 conditions["has_two_gates"] = has_two_gates
 conditions["has_three_gates"] = has_three_gates
 
-prev_x = 0
+# define being through gate as no detections for a while after having seen some
+through_gate = partial(n_gates, n=0)
+is_through_gate = Condition(through_gate, settings.GATE_THROUGH_CYCLES, 1, False)
+conditions["is_through_gate"] = is_through_gate
+
+prev_id = 1234
 def new_frame(args):
     dets = data(args)["forwarddetection"].detections
-    global prev_x
-    if dets[0].x != prev_x:
-        prev_x = dets[0].x
+    global prev_id
+    if dets[0].id != prev_id:
+        prev_id = dets[0].id
         return True
     return False
 has_new_frame = Condition(new_frame, 1, 1, False)
