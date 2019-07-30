@@ -5,7 +5,9 @@ from detection_utils import (
     active_detections,
     align_adjustment,
     center_pole_index,
-    gate_dets
+    gate_dets,
+    buoy_dets,
+    jianshi_dets
 )
 
 import settings
@@ -59,9 +61,8 @@ class KilledState(State):
         if conditions(args)["below_starting_depth"](args):
             start_heading = data(args)["angular"].acc[Axes.zaxis]
             start_depth = settings.STARTING_DEPTH
-            # return Gate(start_heading, start_depth, self.heading_to_follow)
-            # TODO
-            return FindBuoy(start_heading, start_depth)
+            return Gate(start_heading, start_depth, self.heading_to_follow)
+            # return FindBuoy(start_heading, start_depth)
         return self
     def heading(self):
         return 0
@@ -85,6 +86,9 @@ class Gate(KillableState):
         self.set_depth = start_depth
         self.gate_heading = gate_heading
         self.processed_frame = False
+        self.left_det = None
+        self.right_det = None
+        self.dets = []
         self.microstate = self.pre_init
     def pre_init(self, args):
         self.microstate = self.post_init
@@ -97,32 +101,34 @@ class Gate(KillableState):
     def initial_dead_reckon(self, args):
         self.set_velocity = settings.GATE_VELOCITY
         if conditions(args)["interesting_frame"](args):
-            dets = data(args)["forwarddetection"].detections
-            num_dets = len(gate_dets(dets))
+            d = data(args)["forwarddetection"].detections
+            self.dets = gate_dets(d)
+            num_dets = len(self.dets)
             if num_dets == 1:
                 self.microstate = self.initial_one_det
             else:
-                self.microstate = self.transition_on_num_dets
+                self.microstate = self.transition_on_new_frame
         return self
     def initial_one_det(self, args):
         if not self.processed_frame:
             self.processed_frame = True
-            dets = data(args)["forwarddetection"].detections
-            dets = gate_dets(dets)
-            if dets[0].x > 0.5 + settings.VISION_X_TOLERANCE:
+            if self.dets[0].x > 0.5 + settings.VISION_X_TOLERANCE:
                 self.set_heading += settings.GATE_HEADING_ADJUST
-            if dets[0].x < 0.5 - settings.VISION_X_TOLERANCE:
+            if self.dets[0].x < 0.5 - settings.VISION_X_TOLERANCE:
                 self.set_heading -= settings.GATE_HEADING_ADJUST
         if conditions(args)["has_new_frame"](args):
             self.processed_frame = False
-            dets = data(args)["forwarddetection"].detections
-            num_dets = len(gate_dets(dets))
+            d = data(args)["forwarddetection"].detections
+            self.dets = gate_dets(d)
+            num_dets = len(self.dets)
             if num_dets == 0:
                 self.microstate = self.initial_dead_reckon
             elif num_dets > 1:
-                self.microstate = self.transition_on_num_dets
+                self.microstate = self.transition_on_new_frame
         return self
-    def transition_on_num_dets(self, args):
+    def transition_on_new_frame(self, args):
+        d = data(args)["forwarddetection"].detections
+        self.dets = gate_dets(d)
         if conditions(args)["has_one_gate"](args):
             self.microstate = self.one_det
         elif conditions(args)["has_two_gates"](args):
@@ -138,50 +144,50 @@ class Gate(KillableState):
         return self
     def two_dets(self, args):
         self.set_velocity = settings.GATE_VELOCITY
-        dets = data(args)["forwarddetection"].detections
-        cpi = center_pole_index(gate_dets(dets))
+        cpi = center_pole_index(self.dets)
         if cpi == -1:
-            self.microstate = self.align01
+            self.left_det = self.dets[0]
+            self.right_det = self.dets[1]
+            self.microstate = self.align_between
         elif cpi == 0:
             if settings.GATE_40_LEFT:
                 self.microstate = self.turn_left
             else:
-                self.microstate = self.align01
+                self.left_det = self.dets[0]
+                self.right_det = self.dets[1]
+                self.microstate = self.align_between
         elif cpi == 1:
             if settings.GATE_40_LEFT:
-                self.microstate = self.align01
+                self.left_det = self.dets[0]
+                self.right_det = self.dets[1]
+                self.microstate = self.align_between
             else:
                 self.microstate = self.turn_right
         return self
     def three_dets(self, args):
         self.set_velocity = settings.GATE_VELOCITY
         if settings.GATE_40_LEFT:
-            self.microstate = self.align01;
+            self.left_det = self.dets[0]
+            self.right_det = self.dets[1]
+            self.microstate = self.align_between;
         else:
-            self.microstate = self.align12;
+            self.left_det = self.dets[1]
+            self.right_det = self.dets[2]
+            self.microstate = self.align_between;
         return self
     def one_det(self, args):
-        dets = data(args)["forwarddetection"].detections
-        dets = gate_dets(dets)
-        if dets[0].x >= 0.5:
+        if self.dets[0].x >= 0.5:
             self.microstate = self.turn_left
-        if dets[0].x < 0.5:
+        if self.dets[0].x < 0.5:
             self.microstate = self.turn_right
         return self
     def wait_for_new_frame(self, args):
         if conditions(args)["has_new_frame"](args):
-            self.microstate = self.transition_on_num_dets
+            self.microstate = self.transition_on_new_frame
         return self
-    def align01(self, args):
-        dets = data(args)["forwarddetection"].detections
-        dets = gate_dets(dets)
-        self.set_heading += settings.GATE_HEADING_ADJUST * align_adjustment(dets[0], dets[1])
-        self.microstate = self.wait_for_new_frame
-        return self
-    def align12(self, args):
-        dets = data(args)["forwarddetection"].detections
-        dets = gate_dets(dets)
-        self.set_heading += settings.GATE_HEADING_ADJUST * align_adjustment(dets[1], dets[2])
+    def align_between(self, args):
+        self.set_heading += settings.GATE_HEADING_ADJUST * \
+                            align_adjustment(self.left_det, self.right_det)
         self.microstate = self.wait_for_new_frame
         return self
     def turn_right(self, args):
@@ -198,6 +204,8 @@ class FindBuoy(KillableState):
         super(FindBuoy, self).__init__()
         self.set_heading = start_heading
         self.set_depth = start_depth
+        self.align_det = None
+        self.dets = []
         self.microstate = self.pre_init
         self.target_heading = start_heading + settings.BUOY_START_TURN
     def pre_init(self, args):
@@ -209,17 +217,18 @@ class FindBuoy(KillableState):
         self.microstate = self.wait_for_new_frame
         return self
     def transition_on_new_frame(self, args):
-        dets = data(args)["forwarddetection"].detections
-        num_dets = active_detections(dets)
+        d = data(args)["forwarddetection"].detections
+        self.dets = buoy_dets(d)
+        num_dets = len(self.dets)
         if num_dets == 0:
             self.microstate = self.drive_forward
-        # TODO magic number 3
-        elif num_dets >= 1 and dets[0].cls == 3:
-            if dets[0].cxt > settings.BUOY_SIZE_THRESH:
+        elif num_dets >= 1 and self.dets[0].cls == 3:
+            if self.dets[0].cxt > settings.BUOY_SIZE_THRESH:
                 self.microstate = self.prepare_for_second_buoy
                 return TouchBuoy(self, self.set_heading)
             else:
-                self.microstate = self.align0
+                self.align_det = self.dets[0]
+                self.microstate = self.align_to
         return self
     def wait_for_new_frame(self, args):
         if conditions(args)["has_new_frame"](args):
@@ -229,12 +238,11 @@ class FindBuoy(KillableState):
         self.set_velocity = settings.BUOY_VELOCITY
         self.microstate = self.wait_for_new_frame
         return self
-    def align0(self, args):
+    def align_to(self, args):
         self.set_velocity = settings.BUOY_VELOCITY
-        dets = data(args)["forwarddetection"].detections
-        if dets[0].x < (0.5 - settings.VISION_X_TOLERANCE):
+        if self.align_det.x < (0.5 - settings.VISION_X_TOLERANCE):
             self.microstate = self.turn_left
-        elif dets[0].x > (0.5 + settings.VISION_X_TOLERANCE):
+        elif self.align_det.x > (0.5 + settings.VISION_X_TOLERANCE):
             self.microstate = self.turn_right
         else:
             self.microstate = self.wait_for_new_frame

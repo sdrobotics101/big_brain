@@ -19,7 +19,9 @@ from buffers import (
 )
 from detection_utils import (
     active_detections,
-    gate_dets
+    gate_dets,
+    jianshi_dets,
+    triangle_dets
 )
 
 from functools import partial
@@ -109,6 +111,18 @@ def is_below_starting_depth(args):
     return data(args)["linear"].pos[Axes.zaxis] > settings.STARTING_DEPTH
 below_starting_depth = Condition(is_below_starting_depth, 100, 1, False)
 conditions["below_starting_depth"] = below_starting_depth
+
+def seen_jianshi(args):
+    dets = data(args)["forwarddetection"].detections
+    return len(jianshi_dets(dets)) > 0
+has_jianshi = Condition(seen_jianshi, 1, 1, False)
+conditions["has_jianshi"] = has_jianshi
+
+def seen_triangle(args):
+    dets = data(args)["forwarddetection"].detections
+    return len(triangle_dets(dets)) > 0
+has_triangle = Condition(seen_triangle, 1, 1, False)
+conditions["has_triangle"] = has_triangle
 
 def set_control(client, heading, depth, velocity):
     control = ControlInput()

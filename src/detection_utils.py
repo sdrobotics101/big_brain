@@ -22,6 +22,23 @@ checker_dets = partial(detections_of_class, cls=settings.CHECKER)
 wolf_dets = partial(detections_of_class, cls=settings.WOLF)
 bat_dets = partial(detections_of_class, cls=settings.BAT)
 
+def is_triangle_cls(cls):
+    return cls == settings.ASWANG or \
+           cls == settings.DRAUGR or \
+           cls == settings.VETALAS
+
+def triangle_dets(dets):
+    f = lambda x: is_triangle_cls(x.cls)
+    return list(filter(f, dets))
+
+def is_buoy_cls(cls):
+    return cls == settings.JIANGSHI or \
+           is_triangle_cls(cls)
+
+def buoy_dets(dets):
+    f = lambda x: is_buoy_cls(x.cls)
+    return list(filter(f, dets))
+
 def center_pole_index(dets):
     dets = gate_dets(dets)
     if dets[0].h < dets[1].h * settings.CENTER_POLE_HEIGHT_MULTIPLIER:
