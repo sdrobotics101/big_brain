@@ -6,7 +6,7 @@ sys.path.append("./dependencies/python-shared-buffers/shared_buffers/")
 
 import pydsm
 
-from master import ControlInput, SensorReset, Status
+from master import ControlInput, SensorReset, Status, DropperInput
 from sensor import Angular, Linear
 from navigation import Kill
 from serialization import pack, unpack
@@ -148,14 +148,23 @@ def set_control(client, heading, depth, velocity):
     client.setLocalBufferContents("control", pack(control))
     return control
 
+def set_droppers(client, dropper0, dropper1):
+    d = DropperInput()
+    d.droppers[0] = dropper0
+    d.droppers[1] = dropper1
+    client.setLocalBufferContents("droppers", pack(d))
+    return d
+
 def main():
     client = pydsm.Client(42, settings.CLIENT_ID, True)
     client.registerLocalBuffer("control", sizeof(ControlInput), False)
     client.registerLocalBuffer("sensorreset", sizeof(SensorReset), False)
+    client.registerLocalBuffer("droppers", sizeof(DropperInput), False)
     # client.registerLocalBuffer("status", sizeof(Status), False)
     time.sleep(0.5)
     control = set_control(client, 0, 0, 0)
     client.setLocalBufferContents("sensorreset", pack(sensorReset))
+    droppers = set_droppers(client, False, False)
     # client.setLocalBufferContents("status", pack(status))
     print("Created local buffers: control, sensorreset, status")
 
