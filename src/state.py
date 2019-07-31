@@ -47,12 +47,12 @@ class KilledState(State):
     def __init__(self):
         super(KilledState, self).__init__()
         self.microstate = self.check_unkilled
-        self.heading_to_follow = 0
+        self.unkilled_heading = 0
     def __call__(self, args):
         return self.microstate(args)
     def check_unkilled(self, args):
         if not conditions(args)["killed"](args):
-            self.heading_to_follow = data(args)["angular"].acc[Axes.zaxis]
+            self.unkilled_heading = data(args)["angular"].acc[Axes.zaxis]
             self.microstate = self.wait_for_depth
             conditions(args)["below_starting_depth"].reset(False)
         return self
@@ -60,11 +60,14 @@ class KilledState(State):
         if conditions(args)["killed"](args):
             return KilledState()
         if conditions(args)["below_starting_depth"](args):
-            return SinkAndFindHeading(Gate(self.heading_to_follow),
+            return SinkAndFindHeading(Gate(self.unkilled_heading),
                                       data(args)["angular"].acc[Axes.zaxis],
-                                      self.heading_to_follow,
+                                      self.unkilled_heading,
                                       settings.GATE_TARGET_DEPTH)
-            # return FindBuoy(start_heading, start_depth)
+            # return SinkAndFindHeading(FindTriangleBuoy(self.unkilled_heading),
+            #                           data(args)["angular"].acc[Axes.zaxis],
+            #                           self.unkilled_heading,
+            #                           settings.BUOY_TARGET_DEPTH)
         return self
     def heading(self):
         return 0
@@ -183,7 +186,7 @@ class Gate(KillableState):
         return self
     def wait_for_new_frame(self, args):
         if conditions(args)["is_through_gate"](args):
-            self.microstate = self.prepare_for_buoys
+            self.microstate = self.do_720
         elif conditions(args)["has_new_frame"](args):
             self.microstate = self.transition_on_new_frame
         return self
@@ -200,6 +203,22 @@ class Gate(KillableState):
         self.set_heading -= settings.GATE_HEADING_ADJUST
         self.microstate = self.wait_for_new_frame
         return self
+    def do_720(self, args):
+        self.microstate = self.prepare_for_buoys
+        heading_0 = self.set_heading + 0
+        heading_90 = self.set_heading + 90
+        heading_180 = self.set_heading + 180
+        heading_270 = self.set_heading + 270
+        turn7 = SinkAndFindHeading(self, heading_270, heading_0, settings.GATE_TARGET_DEPTH)
+        turn6 = SinkAndFindHeading(turn7, heading_180, heading_270, settings.GATE_TARGET_DEPTH)
+        turn5 = SinkAndFindHeading(turn6, heading_90, heading_180, settings.GATE_TARGET_DEPTH)
+        turn4 = SinkAndFindHeading(turn5, heading_0, heading_90, settings.GATE_TARGET_DEPTH)
+        turn3 = SinkAndFindHeading(turn4, heading_270, heading_0, settings.GATE_TARGET_DEPTH)
+        turn2 = SinkAndFindHeading(turn3, heading_180, heading_270, settings.GATE_TARGET_DEPTH)
+        turn1 = SinkAndFindHeading(turn2, heading_90, heading_180, settings.GATE_TARGET_DEPTH)
+        turn0 = SinkAndFindHeading(turn1, heading_0, heading_90, settings.GATE_TARGET_DEPTH)
+        return turn0
+    # def __init__(self, return_state, start_heading, target_heading, target_depth):
     def prepare_for_buoys(self, args):
             initial_turn_heading = self.set_heading + settings.G2B_INITIAL_TURN_AMOUNT
             final_turn_heading = initial_turn_heading + settings.G2B_FINAL_TURN_AMOUNT
