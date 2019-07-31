@@ -385,6 +385,7 @@ class SinkAndFindHeading(KillableState):
     def sink(self, args):
         if conditions(args)["at_depth"](args):
             self.microstate = self.align
+            conditions(args)["at_heading"].reset(False)
         return self
     def align(self, args):
         self.set_heading = self.target_heading
