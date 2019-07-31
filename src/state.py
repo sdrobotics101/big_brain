@@ -182,8 +182,25 @@ class Gate(KillableState):
         return self
     def wait_for_new_frame(self, args):
         if conditions(args)["is_through_gate"](args):
+            initial_turn_heading = self.set_heading + settings.G2B_INITIAL_TURN_AMOUNT
+            final_turn_heading = initial_turn_heading + settings.G2B_FINAL_TURN_AMOUNT
+            # build the steps in reverse
             # TODO
-            return Surface()
+            enter_buoys = Surface()
+            turn_around = SinkAndFindHeading(enter_buoys,
+                                             initial_turn_heading,
+                                             final_turn_heading,
+                                             settings.BUOY_TARGET_DEPTH)
+            drive_forward = DriveForward(turn_around,
+                                         initial_turn_heading,
+                                         settings.G2B_TARGET_DEPTH,
+                                         settings.G2B_FORWARD_VELOCITY,
+                                         settings.G2B_FORWARD_TIME)
+            initial_turn = SinkAndFindHeading(drive_forward,
+                                              self.set_heading,
+                                              initial_turn_heading,
+                                              settings.G2B_TARGET_DEPTH)
+            return initial_turn
         if conditions(args)["has_new_frame"](args):
             self.microstate = self.transition_on_new_frame
         return self
@@ -309,5 +326,19 @@ class SinkAndFindHeading(KillableState):
     def align(self, args):
         self.set_heading = self.target_heading
         if conditions(args)["settled"](args):
+            return self.return_state
+        return self
+
+class DriveForward(KillableState):
+    def __init__(self, return_state, heading, depth, velocity, time):
+        super(DriveForward, self).__init__()
+        self.set_heading = heading
+        self.set_depth = depth
+        self.set_velocity = velocity
+        self.end_time = datetime.now() + timedelta(milliseconds=time)
+        self.microstate = self.drive_forward
+        self.return_state = return_state
+    def drive_forward(self, args):
+        if datetime.now() > self.end_time:
             return self.return_state
         return self
