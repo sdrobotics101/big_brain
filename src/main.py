@@ -28,7 +28,7 @@ from functools import partial
 
 from condition import Condition
 
-from state import KilledState, Gate
+from state import KilledState
 
 sensorReset = SensorReset()
 sensorReset.pos[Axes.xaxis] = 0
@@ -130,23 +130,23 @@ has_triangle = Condition(seen_triangle, 1, 1, False)
 conditions["has_triangle"] = has_triangle
 
 def set_control(client, heading, depth, velocity):
-    control = ControlInput()
-    control.angular[Axes.xaxis].pos[0] = 0
-    control.angular[Axes.xaxis].pos[1] = 0
-    control.angular[Axes.yaxis].pos[0] = 0
-    control.angular[Axes.yaxis].pos[1] = 0
-    control.angular[Axes.zaxis].pos[0] = heading
-    control.angular[Axes.zaxis].pos[1] = 0
-    control.linear[Axes.xaxis].vel = velocity
-    control.linear[Axes.yaxis].vel = 0
-    control.linear[Axes.zaxis].pos[0] = depth
-    control.linear[Axes.zaxis].pos[1] = 0
+    control_input = ControlInput()
+    control_input.angular[Axes.xaxis].pos[0] = 0
+    control_input.angular[Axes.xaxis].pos[1] = 0
+    control_input.angular[Axes.yaxis].pos[0] = 0
+    control_input.angular[Axes.yaxis].pos[1] = 0
+    control_input.angular[Axes.zaxis].pos[0] = heading
+    control_input.angular[Axes.zaxis].pos[1] = 0
+    control_input.linear[Axes.xaxis].vel = velocity
+    control_input.linear[Axes.yaxis].vel = 0
+    control_input.linear[Axes.zaxis].pos[0] = depth
+    control_input.linear[Axes.zaxis].pos[1] = 0
     VEL = 0
     POS = 1
     mode = [0,0,POS,VEL,VEL,POS,POS,POS]
-    control.mode = BitArray(mode).uint
-    client.setLocalBufferContents("control", pack(control))
-    return control
+    control_input.mode = BitArray(mode).uint
+    client.setLocalBufferContents("control", pack(control_input))
+    return control_input
 
 def set_droppers(client, dropper0, dropper1):
     d = DropperInput()
@@ -162,7 +162,7 @@ def main():
     client.registerLocalBuffer("droppers", sizeof(DropperInput), False)
     # client.registerLocalBuffer("status", sizeof(Status), False)
     time.sleep(0.5)
-    control = set_control(client, 0, 0, 0)
+    control_input = set_control(client, 0, 0, 0)
     client.setLocalBufferContents("sensorreset", pack(sensorReset))
     droppers = set_droppers(client, False, False)
     # client.setLocalBufferContents("status", pack(status))
@@ -175,16 +175,16 @@ def main():
     while True:
         try:
             # get new data
-            data = update_remote_buffers(client, settings.remote_buffers)
+            data_in = update_remote_buffers(client, settings.remote_buffers)
             # update conditions
             list(map(lambda x: x.prepare(), conditions.values()))
-            list(map(lambda x: x((control, data)), conditions.values()))
+            list(map(lambda x: x((control_input, data_in)), conditions.values()))
             # advance one state
-            next_state = state((control, data, conditions))
+            next_state = state((control_input, data_in, conditions))
             # set outputs
-            control = set_control(client, state.heading(), state.depth(), state.velocity())
+            control_input = set_control(client, state.heading(), state.depth(), state.velocity())
             strState = str(state)
-            if not ("new_frame" in strState):
+            if "new_frame" not in strState:
                 print(state)
             state = next_state
             # sleep a bit
