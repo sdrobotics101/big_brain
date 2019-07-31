@@ -182,6 +182,24 @@ class Gate(KillableState):
         return self
     def wait_for_new_frame(self, args):
         if conditions(args)["is_through_gate"](args):
+            self.microstate = self.prepare_for_buoys
+        elif conditions(args)["has_new_frame"](args):
+            self.microstate = self.transition_on_new_frame
+        return self
+    def align_between(self, args):
+        self.set_heading += settings.GATE_HEADING_ADJUST * \
+                            align_adjustment(self.left_det, self.right_det)
+        self.microstate = self.wait_for_new_frame
+        return self
+    def turn_right(self, args):
+        self.set_heading += settings.GATE_HEADING_ADJUST
+        self.microstate = self.wait_for_new_frame
+        return self
+    def turn_left(self, args):
+        self.set_heading -= settings.GATE_HEADING_ADJUST
+        self.microstate = self.wait_for_new_frame
+        return self
+    def prepare_for_buoys(self, args):
             initial_turn_heading = self.set_heading + settings.G2B_INITIAL_TURN_AMOUNT
             final_turn_heading = initial_turn_heading + settings.G2B_FINAL_TURN_AMOUNT
             # build the steps in reverse
@@ -201,22 +219,6 @@ class Gate(KillableState):
                                               initial_turn_heading,
                                               settings.G2B_TARGET_DEPTH)
             return initial_turn
-        if conditions(args)["has_new_frame"](args):
-            self.microstate = self.transition_on_new_frame
-        return self
-    def align_between(self, args):
-        self.set_heading += settings.GATE_HEADING_ADJUST * \
-                            align_adjustment(self.left_det, self.right_det)
-        self.microstate = self.wait_for_new_frame
-        return self
-    def turn_right(self, args):
-        self.set_heading += settings.GATE_HEADING_ADJUST
-        self.microstate = self.wait_for_new_frame
-        return self
-    def turn_left(self, args):
-        self.set_heading -= settings.GATE_HEADING_ADJUST
-        self.microstate = self.wait_for_new_frame
-        return self
 
 class FindBuoy(KillableState):
     def __init__(self, start_heading, start_depth):
