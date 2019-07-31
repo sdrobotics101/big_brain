@@ -7,7 +7,8 @@ from detection_utils import (
     center_pole_index,
     gate_dets,
     buoy_dets,
-    jianshi_dets
+    jianshi_dets,
+    triangle_dets
 )
 
 import settings
@@ -203,8 +204,7 @@ class Gate(KillableState):
             initial_turn_heading = self.set_heading + settings.G2B_INITIAL_TURN_AMOUNT
             final_turn_heading = initial_turn_heading + settings.G2B_FINAL_TURN_AMOUNT
             # build the steps in reverse
-            # TODO
-            enter_buoys = Surface()
+            enter_buoys = FindTriangleBuoy(final_turn_heading)
             turn_around = SinkAndFindHeading(enter_buoys,
                                              initial_turn_heading,
                                              final_turn_heading,
@@ -220,36 +220,30 @@ class Gate(KillableState):
                                               settings.G2B_TARGET_DEPTH)
             return initial_turn
 
-class FindBuoy(KillableState):
-    def __init__(self, start_heading, start_depth):
-        super(FindBuoy, self).__init__()
+class FindTriangleBuoy(KillableState):
+    def __init__(self, start_heading):
+        super(FindTriangleBuoy, self).__init__()
         self.set_heading = start_heading
-        self.set_depth = start_depth
-        self.align_det = None
-        self.dets = []
-        self.microstate = self.pre_init
-        self.target_heading = start_heading + settings.BUOY_START_TURN
-    def pre_init(self, args):
-        self.microstate = self.post_init
-        return SinkAndFindHeading(self, self.target_heading, settings.BUOY_TARGET_DEPTH)
-    def post_init(self, args):
-        self.set_heading = self.target_heading
         self.set_depth = settings.BUOY_TARGET_DEPTH
-        self.microstate = self.wait_for_new_frame
-        return self
+        self.align_det = None
+        self.microstate = self.drive_forward
     def transition_on_new_frame(self, args):
-        d = data(args)["forwarddetection"].detections
-        self.dets = buoy_dets(d)
-        num_dets = len(self.dets)
-        if num_dets == 0:
-            self.microstate = self.drive_forward
-        elif num_dets >= 1 and self.dets[0].cls == 3:
-            if self.dets[0].cxt > settings.BUOY_SIZE_THRESH:
-                self.microstate = self.prepare_for_second_buoy
-                return TouchBuoy(self, self.set_heading)
+        dets = data(args)["forwarddetection"].detections
+        dets = buoy_dets(dets)
+        if len(triangle_dets(dets)) > 0:
+            d = triangle_dets(dets)[0]
+            if d.cxt > settings.BUOY_SIZE_THRESH:
+                find_jianshi = FindJianshiBuoy(self.set_heading)
+                return TouchBuoy(find_jianshi, self.set_heading)
+            self.align_det = d
+            self.microstate = self.align_to
+        elif len(jianshi_dets(dets)) > 0:
+            if settings.BUOY_TRIANGLE_LEFT:
+                self.microstate = self.turn_left
             else:
-                self.align_det = self.dets[0]
-                self.microstate = self.align_to
+                self.microstate = self.turn_right
+        else:
+            self.microstate = self.drive_forward
         return self
     def wait_for_new_frame(self, args):
         if conditions(args)["has_new_frame"](args):
@@ -276,8 +270,56 @@ class FindBuoy(KillableState):
         self.set_heading -= settings.BUOY_HEADING_ADJUST
         self.microstate = self.wait_for_new_frame
         return self
-    def prepare_for_second_buoy(self, args):
-        self.set_velocity = 0
+
+class FindJianshiBuoy(KillableState):
+    def __init__(self, start_heading):
+        super(FindJianshiBuoy, self).__init__()
+        self.set_heading = start_heading
+        self.set_depth = settings.BUOY_TARGET_DEPTH
+        self.align_det = None
+        self.microstate = self.drive_forward
+    def transition_on_new_frame(self, args):
+        dets = data(args)["forwarddetection"].detections
+        dets = buoy_dets(dets)
+        if len(jianshi_dets(dets)) > 0:
+            d = jianshi_dets(dets)[0]
+            if d.cxt > settings.BUOY_SIZE_THRESH:
+                # TODO
+                return TouchBuoy(Surface(), self.set_heading)
+            self.align_det = d
+            self.microstate = self.align_to
+        elif len(triangle_dets(dets)) > 0:
+            if settings.BUOY_TRIANGLE_LEFT:
+                self.microstate = self.turn_right
+            else:
+                self.microstate = self.turn_left
+        else:
+            self.microstate = self.drive_forward
+        return self
+    def wait_for_new_frame(self, args):
+        if conditions(args)["has_new_frame"](args):
+            self.microstate = self.transition_on_new_frame
+        return self
+    def drive_forward(self, args):
+        self.set_velocity = settings.BUOY_VELOCITY
+        self.microstate = self.wait_for_new_frame
+        return self
+    def align_to(self, args):
+        self.set_velocity = settings.BUOY_VELOCITY
+        if self.align_det.x < (0.5 - settings.VISION_X_TOLERANCE):
+            self.microstate = self.turn_left
+        elif self.align_det.x > (0.5 + settings.VISION_X_TOLERANCE):
+            self.microstate = self.turn_right
+        else:
+            self.microstate = self.wait_for_new_frame
+        return self
+    def turn_right(self, args):
+        self.set_heading += settings.BUOY_HEADING_ADJUST
+        self.microstate = self.wait_for_new_frame
+        return self
+    def turn_left(self, args):
+        self.set_heading -= settings.BUOY_HEADING_ADJUST
+        self.microstate = self.wait_for_new_frame
         return self
 
 class TouchBuoy(KillableState):
